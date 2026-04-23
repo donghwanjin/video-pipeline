@@ -9,6 +9,9 @@ elevenlabs_api_key: "..."
 elevenlabs_voice_en: "pNInz6obpgDQGcFmaJgB"   # Adam (English)
 elevenlabs_voice_ko: "..."                      # Set a Korean-capable voice ID here
 
+replicate_api_key: "r8_..."
+image_count: 6          # number of AI images to generate (5–8 recommended)
+
 # Output settings
 output_dir: "workspace/output"
 
