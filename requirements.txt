@@ -1,0 +1,8 @@
+anthropic>=0.25.0
+youtube-transcript-api>=0.6.2
+youtube-comment-downloader>=0.1.68
+python-pptx>=0.6.23
+Pillow>=10.0.0
+elevenlabs>=1.0.0
+pyyaml>=6.0
+manim>=0.18.0

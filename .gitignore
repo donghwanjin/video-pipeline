@@ -1,0 +1,8 @@
+workspace/
+config.yaml
+__pycache__/
+*.pyc
+*.pyo
+.superpowers/
+Thumbs.db
+.DS_Store

@@ -1,0 +1,16 @@
+# Video Pipeline Configuration
+# Copy this file to config.yaml and fill in your API keys.
+
+anthropic_api_key: "sk-ant-..."
+
+elevenlabs_api_key: "..."
+# ElevenLabs voice IDs — find these at https://elevenlabs.io/voice-library
+# or via: GET https://api.elevenlabs.io/v1/voices
+elevenlabs_voice_en: "pNInz6obpgDQGcFmaJgB"   # Adam (English)
+elevenlabs_voice_ko: "..."                      # Set a Korean-capable voice ID here
+
+# Output settings
+output_dir: "workspace/output"
+
+# Slide visual theme: "dark" or "light"
+slide_theme: "dark"
