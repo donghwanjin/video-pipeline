@@ -55,7 +55,6 @@ def generate_image(prompt: str, output_path: str, replicate_api_key: str) -> boo
     """
     import replicate
 
-    os.environ["REPLICATE_API_TOKEN"] = replicate_api_key
     try:
         output = replicate.run(
             FLUX_MODEL,
@@ -90,6 +89,9 @@ def main():
         return
 
     anthropic_key = cfg.get("anthropic_api_key", "")
+    if not anthropic_key or anthropic_key.startswith("sk-ant-..."):
+        print("[Stage 5] ERROR: anthropic_api_key not set in config.", file=sys.stderr)
+        sys.exit(1)
     image_count = int(cfg.get("image_count", 6))
 
     script_path = os.path.join(args.script_dir, "script_en.md")
@@ -117,6 +119,7 @@ def main():
         print(f"[Stage 5] Prompts saved to {prompts_path}")
 
     # Step 2: Generate images (skip already-generated)
+    os.environ["REPLICATE_API_TOKEN"] = replicate_key
     generated = 0
     for i, prompt in enumerate(prompts, start=1):
         img_path = os.path.join(out_dir, f"image_{i:02d}.png")

@@ -214,7 +214,7 @@ def append_outro_gallery(video_path: str, images_dir: str) -> None:
                     "-vf", zoompan_filter,
                     "-c:v", "libx264",
                     "-pix_fmt", "yuv420p",
-                    "-t", str(duration_each),
+                    "-t", f"{duration_each:.2f}",
                     "-an",  # silent — no audio track
                     clip_path,
                 ],
@@ -228,7 +228,7 @@ def append_outro_gallery(video_path: str, images_dir: str) -> None:
         concat_list = os.path.join(tmpdir, "gallery_concat.txt")
         with open(concat_list, "w") as f:
             for path in gallery_clips:
-                f.write(f"file '{path}'\n")
+                f.write(f"file '{path.replace(chr(92), '/')}'\n")
         subprocess.run(
             [
                 "ffmpeg", "-y",
@@ -256,7 +256,7 @@ def append_outro_gallery(video_path: str, images_dir: str) -> None:
                 "-c:v", "copy",
                 "-c:a", "aac",
                 "-b:a", "192k",
-                "-t", str(duration_outro),
+                "-t", f"{duration_outro:.2f}",
                 outro_with_audio,
             ],
             check=True,
@@ -267,8 +267,8 @@ def append_outro_gallery(video_path: str, images_dir: str) -> None:
         extended_path = os.path.join(tmpdir, "extended.mp4")
         final_concat = os.path.join(tmpdir, "final_concat.txt")
         with open(final_concat, "w") as f:
-            f.write(f"file '{os.path.abspath(video_path)}'\n")
-            f.write(f"file '{outro_with_audio}'\n")
+            f.write(f"file '{os.path.abspath(video_path).replace(chr(92), '/')}'\n")
+            f.write(f"file '{outro_with_audio.replace(chr(92), '/')}'\n")
         subprocess.run(
             [
                 "ffmpeg", "-y",
@@ -295,6 +295,7 @@ def main():
     parser.add_argument("--slides-dir", default="workspace/slides")
     parser.add_argument("--audio-dir", default="workspace/audio")
     parser.add_argument("--manim-dir", default="workspace/manim")
+    parser.add_argument("--images-dir", default="workspace/images")
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as f:
@@ -321,7 +322,7 @@ def main():
         )
 
     # Append AI image outro gallery if images exist
-    en_images_dir = os.path.join("workspace", "images", "en")
+    en_images_dir = os.path.join(args.images_dir, "en")
     if glob.glob(os.path.join(en_images_dir, "image_*.png")):
         print("[Stage 5] Appending AI image outro gallery to English video...")
         append_outro_gallery(

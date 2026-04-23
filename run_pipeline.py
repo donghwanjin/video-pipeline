@@ -86,7 +86,8 @@ def main():
         6: ["--config", args.config, "--slides-dir", "workspace/slides",
             "--audio-dir", "workspace/audio"],
         7: ["--config", args.config, "--slides-dir", "workspace/slides",
-            "--audio-dir", "workspace/audio", "--manim-dir", "workspace/manim"],
+            "--audio-dir", "workspace/audio", "--manim-dir", "workspace/manim",
+            "--images-dir", "workspace/images"],
     }
 
     for num, name, script in STAGES:

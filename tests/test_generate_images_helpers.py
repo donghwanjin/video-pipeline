@@ -61,3 +61,8 @@ class TestParsePrompts:
         response = json.dumps(["  A foggy moor  ", "  Ancient stones  "])
         result = parse_prompts(response, 2)
         assert result == ["A foggy moor", "Ancient stones"]
+
+    def test_raises_on_non_list_json(self):
+        import pytest
+        with pytest.raises(ValueError, match="Expected JSON array"):
+            parse_prompts('{"prompts": ["A", "B"]}', 2)
