@@ -57,10 +57,15 @@ def parse_prompts(response_text: str, image_count: int) -> list[str]:
         text = match.group(1).strip()
 
     prompts: list[str] = json.loads(text)
+    if not isinstance(prompts, list):
+        raise ValueError(f"Expected JSON array from Claude, got {type(prompts).__name__}")
 
     if not prompts:
         raise ValueError("No prompts parsed from Claude response")
 
-    # Strip whitespace and truncate to requested count
-    prompts = [p.strip() for p in prompts]
+    # Strip whitespace and filter out empty strings
+    prompts = [str(p).strip() for p in prompts]
+    prompts = [p for p in prompts if p]
+    if not prompts:
+        raise ValueError("No prompts parsed from Claude response")
     return prompts[:image_count]
