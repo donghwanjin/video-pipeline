@@ -17,6 +17,7 @@ Outputs:
 import argparse
 import glob
 import os
+import shutil
 import subprocess
 import tempfile
 
@@ -250,6 +251,8 @@ def append_outro_gallery(video_path: str, images_dir: str) -> None:
                 "-i", outro_path,
                 "-f", "lavfi",
                 "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+                "-map", "0:v",
+                "-map", "1:a",
                 "-c:v", "copy",
                 "-c:a", "aac",
                 "-b:a", "192k",
@@ -280,7 +283,6 @@ def append_outro_gallery(video_path: str, images_dir: str) -> None:
         )
 
         # Replace the original video with the extended one
-        import shutil
         shutil.move(extended_path, video_path)
 
     size_mb = os.path.getsize(video_path) / (1024 * 1024)
