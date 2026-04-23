@@ -168,6 +168,125 @@ def assemble_lang_manim(manim_dir: str, audio_dir: str, output_path: str, lang: 
     print(f"  [{lang}] Done. Output: {output_path} ({size_mb:.1f} MB)")
 
 
+def append_outro_gallery(video_path: str, images_dir: str) -> None:
+    """
+    Append a silent Ken Burns outro gallery to video_path.
+
+    Each image is shown for 10 / image_count seconds with a slow zoom-in.
+    The gallery is concatenated directly onto the existing video.
+    Requires at least 2 images; skips silently if fewer are found.
+
+    Args:
+        video_path: Path to the main video file to extend (modified in place).
+        images_dir: Directory containing image_01.png … image_N.png
+    """
+    image_files = sorted(glob.glob(os.path.join(images_dir, "image_*.png")))
+    if len(image_files) < 2:
+        print(f"  [outro] Fewer than 2 images found in {images_dir}. Skipping outro gallery.")
+        return
+
+    image_count = len(image_files)
+    duration_each = 10.0 / image_count  # total gallery ~10 s
+
+    print(f"  [outro] Building outro gallery: {image_count} images × {duration_each:.2f}s each")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        gallery_clips = []
+
+        for i, img_path in enumerate(image_files, start=1):
+            clip_path = os.path.join(tmpdir, f"gallery_{i:02d}.mp4")
+            # Ken Burns: slow zoom from 1.0x to 1.05x over duration_each seconds
+            fps = 25
+            total_frames = int(fps * duration_each)
+            zoom_increment = 0.05 / total_frames
+            zoom_expr = f"min(zoom+{zoom_increment:.6f},1.05)"
+            # x/y keep the image centred as zoom grows
+            zoompan_filter = (
+                f"zoompan=z='{zoom_expr}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+                f":d={total_frames}:s=1920x1080:fps={fps}"
+            )
+            subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-loop", "1",
+                    "-i", img_path,
+                    "-vf", zoompan_filter,
+                    "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p",
+                    "-t", str(duration_each),
+                    "-an",  # silent — no audio track
+                    clip_path,
+                ],
+                check=True,
+                capture_output=True,
+            )
+            gallery_clips.append(clip_path)
+
+        # Concatenate gallery clips into one outro file
+        outro_path = os.path.join(tmpdir, "outro.mp4")
+        concat_list = os.path.join(tmpdir, "gallery_concat.txt")
+        with open(concat_list, "w") as f:
+            for path in gallery_clips:
+                f.write(f"file '{path}'\n")
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", concat_list,
+                "-c", "copy",
+                outro_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        # The main video has audio; outro is silent — add silent audio track to outro
+        outro_with_audio = os.path.join(tmpdir, "outro_audio.mp4")
+        duration_outro = duration_each * image_count
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", outro_path,
+                "-f", "lavfi",
+                "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-t", str(duration_outro),
+                outro_with_audio,
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        # Concatenate main video + outro
+        extended_path = os.path.join(tmpdir, "extended.mp4")
+        final_concat = os.path.join(tmpdir, "final_concat.txt")
+        with open(final_concat, "w") as f:
+            f.write(f"file '{os.path.abspath(video_path)}'\n")
+            f.write(f"file '{outro_with_audio}'\n")
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", final_concat,
+                "-c", "copy",
+                extended_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        # Replace the original video with the extended one
+        import shutil
+        shutil.move(extended_path, video_path)
+
+    size_mb = os.path.getsize(video_path) / (1024 * 1024)
+    print(f"  [outro] Extended video saved: {video_path} ({size_mb:.1f} MB)")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Assemble video from slides and audio")
     parser.add_argument("--config", default="config.yaml")
@@ -197,6 +316,15 @@ def main():
             os.path.join(args.audio_dir, "en"),
             os.path.join(output_dir, "video_en.mp4"),
             "en",
+        )
+
+    # Append AI image outro gallery if images exist
+    en_images_dir = os.path.join("workspace", "images", "en")
+    if glob.glob(os.path.join(en_images_dir, "image_*.png")):
+        print("[Stage 5] Appending AI image outro gallery to English video...")
+        append_outro_gallery(
+            os.path.join(output_dir, "video_en.mp4"),
+            en_images_dir,
         )
 
     ko_audio_dir = os.path.join(args.audio_dir, "ko")
