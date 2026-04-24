@@ -61,7 +61,9 @@ def search_freesound(query: str, api_key: str) -> str | None:
     results = resp.json().get("results", [])
     if not results:
         return None
-    return results[0]["previews"]["preview-hq-mp3"]
+    previews = results[0].get("previews", {})
+    preview_url = previews.get("preview-hq-mp3") or previews.get("preview-lq-mp3")
+    return preview_url
 
 
 def download_sfx(url: str, output_path: str) -> bool:
