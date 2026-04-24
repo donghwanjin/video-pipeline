@@ -13,8 +13,9 @@ Stages:
     3  generate_slides
     4  generate_manim     (cinematic Manim animations)
     5  generate_images    (AI images via Flux for outro gallery)
-    6  generate_audio
-    7  assemble_video     (appends AI image outro if images exist)
+    6  generate_sfx       (Claude SFX cues + Freesound download)
+    7  generate_audio
+    8  assemble_video     (appends SFX mix + AI image outro if available)
 """
 
 import argparse
@@ -30,8 +31,9 @@ STAGES = [
     (3, "Generate Slides",   "stages/3_generate_slides.py"),
     (4, "Generate Manim",    "stages/3b_generate_manim.py"),
     (5, "Generate Images",   "stages/3c_generate_images.py"),
-    (6, "Generate Audio",    "stages/4_generate_audio.py"),
-    (7, "Assemble Video",    "stages/5_assemble_video.py"),
+    (6, "Generate SFX",      "stages/3d_generate_sfx.py"),
+    (7, "Generate Audio",    "stages/4_generate_audio.py"),
+    (8, "Assemble Video",    "stages/5_assemble_video.py"),
 ]
 
 
@@ -56,11 +58,11 @@ def main():
     parser.add_argument("--refs", nargs="+", required=True, help="YouTube reference URLs")
     parser.add_argument("--config", default="config.yaml", help="Path to config.yaml")
     parser.add_argument(
-        "--from-stage", type=int, default=1, choices=[1, 2, 3, 4, 5, 6, 7],
+        "--from-stage", type=int, default=1, choices=[1, 2, 3, 4, 5, 6, 7, 8],
         help="Resume from this stage (skip earlier stages)"
     )
     parser.add_argument(
-        "--to-stage", type=int, default=7, choices=[1, 2, 3, 4, 5, 6, 7],
+        "--to-stage", type=int, default=8, choices=[1, 2, 3, 4, 5, 6, 7, 8],
         help="Stop after this stage"
     )
     args = parser.parse_args()
@@ -83,11 +85,13 @@ def main():
         4: ["--slides-dir", "workspace/slides", "--manim-dir", "workspace/manim"],
         5: ["--config", args.config, "--script-dir", "workspace/scripts",
             "--images-dir", "workspace/images"],
-        6: ["--config", args.config, "--slides-dir", "workspace/slides",
-            "--audio-dir", "workspace/audio"],
+        6: ["--config", args.config, "--script-dir", "workspace/scripts",
+            "--sfx-dir", "workspace/sfx"],
         7: ["--config", args.config, "--slides-dir", "workspace/slides",
+            "--audio-dir", "workspace/audio"],
+        8: ["--config", args.config, "--slides-dir", "workspace/slides",
             "--audio-dir", "workspace/audio", "--manim-dir", "workspace/manim",
-            "--images-dir", "workspace/images"],
+            "--images-dir", "workspace/images", "--sfx-dir", "workspace/sfx"],
     }
 
     for num, name, script in STAGES:

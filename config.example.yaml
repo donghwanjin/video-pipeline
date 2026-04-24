@@ -11,6 +11,8 @@ elevenlabs_voice_ko: "..."                      # Set a Korean-capable voice ID 
 
 replicate_api_key: "r8_..."
 image_count: 6          # number of AI images to generate (5–8 recommended)
+freesound_api_key: "your_freesound_key_here"
+sfx_count: 3            # number of SFX cues Claude selects (1-5 recommended)
 
 # Output settings
 output_dir: "workspace/output"

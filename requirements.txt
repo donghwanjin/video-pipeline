@@ -7,3 +7,4 @@ elevenlabs>=1.0.0
 pyyaml>=6.0
 manim>=0.18.0
 replicate>=0.25.0
+requests>=2.31.0
