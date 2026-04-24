@@ -296,7 +296,7 @@ def mix_sfx_into_video(video_path: str, sfx_dir: str, audio_dir: str) -> None:
 
     Reads sfx_cues.json from sfx_dir to determine which slides get SFX.
     Computes each slide's start time from narration audio durations.
-    Layers SFX at -20 dBFS using ffmpeg adelay + amix. Modifies video_path in place.
+    Layers SFX at 10% volume (volume=0.1, approx -20 dBFS) using ffmpeg adelay + amix. Modifies video_path in place.
 
     Args:
         video_path: Path to the video file to modify in place.
@@ -318,7 +318,7 @@ def mix_sfx_into_video(video_path: str, sfx_dir: str, audio_dir: str) -> None:
         slide_timestamps[i] = cumulative
         try:
             cumulative += get_audio_duration(audio_file)
-        except (ValueError, Exception) as exc:
+        except Exception as exc:
             print(f"  [sfx] WARNING: could not read duration of {audio_file}: {exc}")
             cumulative += 0.0
 
