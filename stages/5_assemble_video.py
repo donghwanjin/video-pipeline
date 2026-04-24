@@ -16,6 +16,7 @@ Outputs:
 
 import argparse
 import glob
+import json
 import os
 import shutil
 import subprocess
@@ -289,6 +290,85 @@ def append_outro_gallery(video_path: str, images_dir: str) -> None:
     print(f"  [outro] Extended video saved: {video_path} ({size_mb:.1f} MB)")
 
 
+def mix_sfx_into_video(video_path: str, sfx_dir: str, audio_dir: str) -> None:
+    """
+    Mix SFX files into the video at their cued slide timestamps.
+
+    Reads sfx_cues.json from sfx_dir to determine which slides get SFX.
+    Computes each slide's start time from narration audio durations.
+    Layers SFX at -20 dBFS using ffmpeg adelay + amix. Modifies video_path in place.
+
+    Args:
+        video_path: Path to the video file to modify in place.
+        sfx_dir: Directory containing sfx_cues.json and slide_N.mp3 files.
+        audio_dir: Directory containing narration slide_*.mp3 files (used for timing).
+    """
+    cues_path = os.path.join(sfx_dir, "sfx_cues.json")
+    if not os.path.exists(cues_path):
+        return
+
+    with open(cues_path, encoding="utf-8") as f:
+        cues = json.load(f)
+
+    # Build slide start-time map from narration audio durations
+    audio_files = sorted(glob.glob(os.path.join(audio_dir, "slide_*.mp3")))
+    slide_timestamps: dict[int, float] = {}
+    cumulative = 0.0
+    for i, audio_file in enumerate(audio_files, start=1):
+        slide_timestamps[i] = cumulative
+        cumulative += get_audio_duration(audio_file)
+
+    # Collect valid cues: slide must exist in timestamps and SFX file must be downloaded
+    valid_cues: list[tuple[float, str]] = []
+    for cue in cues:
+        slide_index = cue["slide_index"]
+        sfx_path = os.path.join(sfx_dir, f"slide_{slide_index:02d}.mp3")
+        if slide_index not in slide_timestamps:
+            print(f"  [sfx] WARNING: slide {slide_index} not in audio files. Skipping cue.")
+            continue
+        if not os.path.exists(sfx_path):
+            print(f"  [sfx] WARNING: {sfx_path} not found. Skipping cue.")
+            continue
+        valid_cues.append((slide_timestamps[slide_index], sfx_path))
+
+    if not valid_cues:
+        print("  [sfx] No valid SFX cues found. Skipping SFX mixing.")
+        return
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cmd = ["ffmpeg", "-y", "-i", video_path]
+        for _, sfx_path in valid_cues:
+            cmd += ["-i", sfx_path]
+
+        filter_parts = []
+        for i, (start_time, _) in enumerate(valid_cues):
+            delay_ms = int(start_time * 1000)
+            filter_parts.append(
+                f"[{i + 1}:a]volume=-20dB,adelay={delay_ms}|{delay_ms}[sfx{i}]"
+            )
+
+        sfx_labels = "".join(f"[sfx{i}]" for i in range(len(valid_cues)))
+        n_inputs = len(valid_cues) + 1
+        filter_parts.append(
+            f"[0:a]{sfx_labels}amix=inputs={n_inputs}:duration=first:normalize=0[aout]"
+        )
+
+        out_path = os.path.join(tmpdir, "with_sfx.mp4")
+        cmd += [
+            "-filter_complex", ";".join(filter_parts),
+            "-map", "0:v",
+            "-map", "[aout]",
+            "-c:v", "copy",
+            "-c:a", "aac", "-b:a", "192k",
+            out_path,
+        ]
+
+        subprocess.run(cmd, check=True, capture_output=True)
+        shutil.move(out_path, video_path)
+
+    print(f"  [sfx] Mixed {len(valid_cues)} SFX into {video_path}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Assemble video from slides and audio")
     parser.add_argument("--config", default="config.yaml")
@@ -296,6 +376,7 @@ def main():
     parser.add_argument("--audio-dir", default="workspace/audio")
     parser.add_argument("--manim-dir", default="workspace/manim")
     parser.add_argument("--images-dir", default="workspace/images")
+    parser.add_argument("--sfx-dir", default="workspace/sfx")
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as f:
@@ -319,6 +400,15 @@ def main():
             os.path.join(args.audio_dir, "en"),
             os.path.join(output_dir, "video_en.mp4"),
             "en",
+        )
+
+    # Mix SFX if available
+    if os.path.exists(os.path.join(args.sfx_dir, "sfx_cues.json")):
+        print("[Stage 5] Mixing SFX into English video...")
+        mix_sfx_into_video(
+            os.path.join(output_dir, "video_en.mp4"),
+            args.sfx_dir,
+            os.path.join(args.audio_dir, "en"),
         )
 
     # Append AI image outro gallery if images exist
