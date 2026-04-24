@@ -316,7 +316,11 @@ def mix_sfx_into_video(video_path: str, sfx_dir: str, audio_dir: str) -> None:
     cumulative = 0.0
     for i, audio_file in enumerate(audio_files, start=1):
         slide_timestamps[i] = cumulative
-        cumulative += get_audio_duration(audio_file)
+        try:
+            cumulative += get_audio_duration(audio_file)
+        except (ValueError, Exception) as exc:
+            print(f"  [sfx] WARNING: could not read duration of {audio_file}: {exc}")
+            cumulative += 0.0
 
     # Collect valid cues: slide must exist in timestamps and SFX file must be downloaded
     valid_cues: list[tuple[float, str]] = []
@@ -344,7 +348,7 @@ def mix_sfx_into_video(video_path: str, sfx_dir: str, audio_dir: str) -> None:
         for i, (start_time, _) in enumerate(valid_cues):
             delay_ms = int(start_time * 1000)
             filter_parts.append(
-                f"[{i + 1}:a]volume=-20dB,adelay={delay_ms}|{delay_ms}[sfx{i}]"
+                f"[{i + 1}:a]volume=0.1,adelay={delay_ms}|{delay_ms}[sfx{i}]"
             )
 
         sfx_labels = "".join(f"[sfx{i}]" for i in range(len(valid_cues)))
@@ -363,7 +367,12 @@ def mix_sfx_into_video(video_path: str, sfx_dir: str, audio_dir: str) -> None:
             out_path,
         ]
 
-        subprocess.run(cmd, check=True, capture_output=True)
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                f"[sfx] ffmpeg SFX mix failed: {exc.stderr.decode(errors='replace')}"
+            ) from exc
         shutil.move(out_path, video_path)
 
     print(f"  [sfx] Mixed {len(valid_cues)} SFX into {video_path}")
@@ -402,7 +411,7 @@ def main():
             "en",
         )
 
-    # Mix SFX if available
+    # Mix SFX into English video only (Korean SFX not supported)
     if os.path.exists(os.path.join(args.sfx_dir, "sfx_cues.json")):
         print("[Stage 5] Mixing SFX into English video...")
         mix_sfx_into_video(
