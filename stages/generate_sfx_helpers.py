@@ -54,7 +54,10 @@ def parse_cues(response_text: str, sfx_count: int) -> list[dict]:
     if match:
         text = match.group(1).strip()
 
-    raw = json.loads(text)
+    try:
+        raw = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Claude response is not valid JSON: {exc}") from exc
     if not isinstance(raw, list):
         raise ValueError(f"Expected JSON array from Claude, got {type(raw).__name__}")
     if not raw:

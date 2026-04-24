@@ -75,6 +75,11 @@ class TestParseCues:
         result = parse_cues(response, 3)
         assert result == [{"slide_index": 2, "cue": "valid sound"}]
 
+    def test_raises_when_all_entries_invalid(self):
+        response = json.dumps([{"wrong": "keys"}, 42, None])
+        with pytest.raises(ValueError, match="No valid cues"):
+            parse_cues(response, 3)
+
 
 class TestBuildFreesoundUrl:
     def test_encodes_spaces_in_query(self):
