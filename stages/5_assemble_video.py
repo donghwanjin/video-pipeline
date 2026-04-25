@@ -20,6 +20,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 
 import yaml
@@ -40,7 +41,78 @@ def get_audio_duration(audio_path: str) -> float:
     return float(result.stdout.strip())
 
 
-def assemble_lang(slides_dir: str, audio_dir: str, output_path: str, lang: str):
+def substitute_stock_clip(
+    slide_index: int,
+    stock_dir: str,
+    audio_path: str,
+    output_path: str,
+) -> bool:
+    """
+    Replace a slide with a stock video clip trimmed/padded to match narration audio duration.
+
+    Scales clip to 1920x1080, pads shorter clips with a frozen last frame,
+    trims longer clips to the exact narration length.
+
+    Args:
+        slide_index: 1-based slide index (matches stock filename slide_NN.mp4).
+        stock_dir: Directory containing stock clips (slide_NN.mp4 files).
+        audio_path: Path to the narration MP3 for this slide (determines duration).
+        output_path: Where to write the resulting MP4 clip.
+
+    Returns:
+        True if the stock clip was used, False if no stock clip is available for this slide.
+    """
+    stock_path = os.path.join(stock_dir, f"slide_{slide_index:02d}.mp4")
+    if not os.path.exists(stock_path):
+        return False
+
+    duration = get_audio_duration(audio_path)
+
+    try:
+        clip_duration = get_audio_duration(stock_path)
+    except Exception as exc:
+        print(f"  [stock] WARNING: could not read duration of {stock_path}: {exc}")
+        return False
+
+    gap = max(0.0, duration - clip_duration)
+    scale_filter = (
+        "scale=1920:1080:force_original_aspect_ratio=decrease,"
+        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2"
+    )
+    pad_filter = f"tpad=stop_mode=clone:stop_duration={gap:.3f}"
+    vf = f"{scale_filter},{pad_filter}"
+
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", stock_path,
+                "-i", audio_path,
+                "-vf", vf,
+                "-map", "0:v",
+                "-map", "1:a",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-t", str(duration),
+                output_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(
+            f"  [stock] WARNING: ffmpeg failed for slide {slide_index}: "
+            f"{exc.stderr.decode(errors='replace')}",
+            file=sys.stderr,
+        )
+        return False
+
+    return True
+
+
+def assemble_lang(slides_dir: str, audio_dir: str, output_path: str, lang: str, stock_dir: str = ""):
     slide_files = sorted(glob.glob(os.path.join(slides_dir, "slide_*.png")))
     audio_files = sorted(glob.glob(os.path.join(audio_dir, "slide_*.mp3")))
 
@@ -58,10 +130,16 @@ def assemble_lang(slides_dir: str, audio_dir: str, output_path: str, lang: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         for i, (slide, audio) in enumerate(zip(slide_files, audio_files), start=1):
             print(f"  [{lang}] Encoding clip {i}/{len(slide_files)}...")
-            duration = get_audio_duration(audio)
             clip_path = os.path.join(tmpdir, f"clip_{i:02d}.mp4")
 
-            # Encode one clip: hold the image for audio duration, fade in/out
+            # Try stock substitution first
+            if stock_dir and substitute_stock_clip(i, stock_dir, audio, clip_path):
+                print(f"  [{lang}]   Using stock clip for slide {i}")
+                clip_paths.append(clip_path)
+                continue
+
+            # Normal PNG encoding: hold the image for audio duration, fade in/out
+            duration = get_audio_duration(audio)
             fade_dur = min(0.3, duration / 4)
             subprocess.run(
                 [
@@ -110,7 +188,7 @@ def assemble_lang(slides_dir: str, audio_dir: str, output_path: str, lang: str):
     print(f"  [{lang}] Done. Output: {output_path} ({size_mb:.1f} MB)")
 
 
-def assemble_lang_manim(manim_dir: str, audio_dir: str, output_path: str, lang: str):
+def assemble_lang_manim(manim_dir: str, audio_dir: str, output_path: str, lang: str, stock_dir: str = ""):
     """Assemble Manim MP4 clips + MP3 audio into final video."""
     clip_files = sorted(glob.glob(os.path.join(manim_dir, "slide_*.mp4")))
     audio_files = sorted(glob.glob(os.path.join(audio_dir, "slide_*.mp3")))
@@ -130,6 +208,14 @@ def assemble_lang_manim(manim_dir: str, audio_dir: str, output_path: str, lang: 
         for i, (clip, audio) in enumerate(zip(clip_files, audio_files), start=1):
             print(f"  [{lang}] Muxing clip {i}/{len(clip_files)}...")
             muxed = os.path.join(tmpdir, f"muxed_{i:02d}.mp4")
+
+            # Try stock substitution first
+            if stock_dir and substitute_stock_clip(i, stock_dir, audio, muxed):
+                print(f"  [{lang}]   Using stock clip for slide {i}")
+                muxed_paths.append(muxed)
+                continue
+
+            # Normal Manim mux
             subprocess.run(
                 [
                     "ffmpeg", "-y",
@@ -386,6 +472,7 @@ def main():
     parser.add_argument("--manim-dir", default="workspace/manim")
     parser.add_argument("--images-dir", default="workspace/images")
     parser.add_argument("--sfx-dir", default="workspace/sfx")
+    parser.add_argument("--stock-dir", default="workspace/stock")
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as f:
@@ -401,6 +488,7 @@ def main():
             os.path.join(args.audio_dir, "en"),
             os.path.join(output_dir, "video_en.mp4"),
             "en",
+            stock_dir=args.stock_dir,
         )
     else:
         print("[Stage 5] Assembling English video (PNG slides)...")
@@ -409,6 +497,7 @@ def main():
             os.path.join(args.audio_dir, "en"),
             os.path.join(output_dir, "video_en.mp4"),
             "en",
+            stock_dir=args.stock_dir,
         )
 
     # Mix SFX into English video only (Korean SFX not supported)
