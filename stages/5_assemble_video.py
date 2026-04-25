@@ -79,8 +79,10 @@ def substitute_stock_clip(
         "scale=1920:1080:force_original_aspect_ratio=decrease,"
         "pad=1920:1080:(ow-iw)/2:(oh-ih)/2"
     )
-    pad_filter = f"tpad=stop_mode=clone:stop_duration={gap:.3f}"
-    vf = f"{scale_filter},{pad_filter}"
+    if gap > 0:
+        vf = f"{scale_filter},tpad=stop_mode=clone:stop_duration={gap:.3f}"
+    else:
+        vf = scale_filter
 
     try:
         subprocess.run(
@@ -521,6 +523,7 @@ def main():
     ko_audio_dir = os.path.join(args.audio_dir, "ko")
     if glob.glob(os.path.join(ko_audio_dir, "slide_*.mp3")):
         ko_manim_dir = os.path.join(args.manim_dir, "ko")
+        # Korean video: no stock substitution (stock footage is English-only, matching SFX scoping)
         if glob.glob(os.path.join(ko_manim_dir, "slide_*.mp4")):
             print("[Stage 5] Assembling Korean video (Manim clips)...")
             assemble_lang_manim(
