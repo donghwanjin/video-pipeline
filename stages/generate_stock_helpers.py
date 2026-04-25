@@ -91,6 +91,7 @@ def build_pexels_url(keyword: str) -> str:
 
     Returns:
         Full URL string for the Pexels video search API.
+        The caller is responsible for passing the API key as an Authorization header.
     """
     encoded = urllib.parse.quote_plus(keyword)
     return (

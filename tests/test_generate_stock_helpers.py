@@ -87,7 +87,7 @@ class TestBuildPexelsUrl:
 
     def test_includes_keyword(self):
         url = build_pexels_url("castle ruins")
-        assert "castle+ruins" in url or "castle%20ruins" in url
+        assert "castle+ruins" in url
 
     def test_targets_pexels(self):
         url = build_pexels_url("test")
