@@ -80,6 +80,8 @@ def download_clip(url: str, output_path: str) -> bool:
         return True
     except requests.RequestException as exc:
         print(f"  WARNING: Clip download failed: {exc}", file=sys.stderr)
+        if os.path.exists(output_path):
+            os.remove(output_path)
         return False
 
 
